@@ -1,6 +1,10 @@
 package edu.berkeley.cs186.database.table.stats;
 
 import java.util.HashSet;
+import java.util.Arrays;
+import java.util.List;
+import java.util.ArrayList;
+import java.util.Collections;
 
 import edu.berkeley.cs186.database.databox.DataBox;
 import edu.berkeley.cs186.database.query.QueryPlan.PredicateOperator;
@@ -32,13 +36,13 @@ import edu.berkeley.cs186.database.databox.TypeId;
  *       ------------------------------
  *        0    10    20  30    40    50
  *
- * A histogram is an ordered list of B "buckets", each of which defines a range (low, high). 
- * For the first, B - 1 buckets, the low of the range is inclusive an the high of the 
- * range is exclusive. For the last Bucket the high of the range is inclusive as well. 
- * Each bucket counts the number of values that fall within its range. In this project, 
+ * A histogram is an ordered list of B "buckets", each of which defines a range (low, high).
+ * For the first, B - 1 buckets, the low of the range is inclusive an the high of the
+ * range is exclusive. For the last Bucket the high of the range is inclusive as well.
+ * Each bucket counts the number of values that fall within its range. In this project,
  * you will work with a floating point histogram where low and high are defined by floats.
  * For any other data type, we will map it so it fits into a floating point histogram.
- * 
+ *
  *
  * The primary data structure to consider is Bucket<Float> [] buckets, which is a list of Bucket
  * objects
@@ -50,7 +54,7 @@ import edu.berkeley.cs186.database.databox.TypeId;
  * b.getCount();//returns the number of items added to the bucket
  * b.getDistinctCount();//returns the approximate number of distinct iterms added to the bucket
  *
- * 
+ *
  */
 public class Histogram {
 
@@ -66,7 +70,8 @@ public class Histogram {
   public Histogram(int numBuckets) {
     buckets = new Bucket[numBuckets];
     this.numBuckets = numBuckets;
-
+    this.maxValue = -Float.MAX_VALUE;
+    this.minValue = Float.MAX_VALUE;
   }
 
 
@@ -97,9 +102,9 @@ public class Histogram {
           case BOOL:   { return (d.getBool()) ? 1.0f : 0.0f; }
 
           case INT:    { return (float) d.getInt(); }
-          
+
           case FLOAT:  { return d.getFloat(); }
-          
+
           case STRING: { return (float) (d.getString().hashCode()); }
         }
 
@@ -116,25 +121,61 @@ public class Histogram {
    *  2. Calculate the width which is the (max - min)/#buckets
    *  3. Create empty bucket objects and place them in the array.
    *  4. Populate the buckets by incrementing
-   *  
+   *
    *  Edge cases: width = 0, put an item only in the last bucket.
    *              final bucket is inclusive on the last value.
    */
-  public void buildHistogram(Table table, int attribute){
+  public void buildHistogram(Table table, int attribute) {
+    boolean first = true;
+    List<Float> values = new ArrayList<Float>();
 
-      // TODO: HW4 implement
+    /* first calculate the min and the max values */
+    for (Record record : table) {
+      float next = this.quantization(record, attribute);
+      if (first) {
+        this.minValue = next;
+        this.maxValue = next;
+        first = false;
+      }
+      if (next > this.maxValue) {
+        this.maxValue = next;
+      }
+      if (next < this.minValue) {
+        this.minValue = next;
+      }
+      values.add(next);
+    }
 
-      //1. first calculate the min and the max values
+    /* calculate the width of each bin */
+    this.width = (this.maxValue - this.minValue)/this.numBuckets;
 
-      //2. calculate the width of each bin
-    
-      //3. create each bucket object
-      
-      //4. populate the data using the increment(value) method
-      
+    /* create each bucket object */
+    for (int i = 0; i < this.numBuckets-1; i++) {
+      this.buckets[i] = new Bucket(this.minValue + i*this.width, this.minValue + (i+1)*this.width);
+    }
+    this.buckets[this.numBuckets-1] = new Bucket(this.minValue + (this.numBuckets-1)*this.width, this.maxValue);
+
+    /* populate the data using the increment(value) method */
+    for (float value : values) {
+      this.insertValue(value);
+    }
   }
 
-
+  /* Helper function */
+  private void insertValue(float value) {
+    if (this.width != 0) {
+      int i = (int) Math.floor( (value - this.minValue) / this.width );
+      if (i < this.numBuckets) {
+        this.buckets[i].increment(value);
+      }
+      else {
+        this.buckets[this.numBuckets-1].increment(value);
+      }
+    }
+    else {
+      buckets[this.numBuckets-1].increment(value);
+    }
+  }
 
 
   //Accessor Methods//////////////////////////////////////////////////////////////
@@ -151,7 +192,7 @@ public class Histogram {
   public int getCount(){
     int sum = 0;
     for (int i=0; i<this.numBuckets; i++)
-      sum += this.buckets[i].getCount(); 
+      sum += this.buckets[i].getCount();
 
     return sum;
   }
@@ -190,14 +231,14 @@ public class Histogram {
    * Then we get a mask, [0, .25, .5, 0, 1], the resulting histogram is:
    *
    *   10 |
-   *    9 |          
-   *    8 |            
-   *    7 |            
-   *    6 |             
-   *    5 |               
+   *    9 |
+   *    8 |
+   *    7 |
+   *    6 |
+   *    5 |
    *    4 |                        3
    *    3 |          2    2      +----+
-   *    2 |       +----+----+    |    |  
+   *    2 |       +----+----+    |    |
    *    1 |       |    |    |    |    |
    *    0 |    0  |    |    |  0 |    |
    *       ------------------------------
@@ -210,9 +251,9 @@ public class Histogram {
     float qvalue =  quantization(value);
 
       //do not handle non equality predicates on strings
-      if (value.type().getTypeId() == TypeId.STRING && 
-            ! (predicate == PredicateOperator.EQUALS || 
-               predicate == PredicateOperator.NOT_EQUALS) ){
+      if (value.type().getTypeId() == TypeId.STRING &&
+            ! (predicate == PredicateOperator.EQUALS ||
+               predicate == PredicateOperator.NOT_EQUALS) ) {
 
         return stringNonEquality(qvalue);
 
@@ -261,7 +302,7 @@ public class Histogram {
 
   /*Nothing fancy here take max of gt and equals*/
   private float [] allGreaterThanEquals(float qvalue){
-    
+
     float [] result = new float[this.numBuckets];
     float [] resultGT = allGreaterThan(qvalue);
     float [] resultEquals = allEquality(qvalue);
@@ -274,7 +315,7 @@ public class Histogram {
 
   /*Nothing fancy here take max of lt and equals*/
   private float [] allLessThanEquals(float qvalue){
-    
+
     float [] result = new float[this.numBuckets];
     float [] resultLT = allLessThan(qvalue);
     float [] resultEquals = allEquality(qvalue);
@@ -294,12 +335,29 @@ public class Histogram {
   /**
    *  Given a quantized value, scale the bucket that contains the value by 1/distinctCount,
    *  and set all other values to 0.
-   */ 
-  private float [] allEquality(float qvalue){
+   */
+  private float [] allEquality(float qvalue) {
+    Bucket bucket;
     float [] result = new float[this.numBuckets];
-    
-    // TODO: HW4 implement;
+    Arrays.fill(result, (float)0);
 
+    if (qvalue < this.minValue) {
+      return result;
+    }
+
+    for (int i = 0; i < this.numBuckets-1; i++) {
+      bucket = this.buckets[i]; /* get current bucket */
+
+      if ((float)bucket.getStart() <= qvalue && qvalue < (float)bucket.getEnd()) {
+        /* If this bucket contains the value */
+        result[i] = (float)1/(float)bucket.getDistinctCount(); /* set to 1/distinctCount */
+        return result;
+      }
+    }
+    if (qvalue <= this.maxValue) {
+      bucket = this.buckets[this.numBuckets-1];
+      result[this.numBuckets-1] = (float)1/(float)bucket.getDistinctCount(); /* set to 1/distinctCount */
+    }
     return result;
   }
 
@@ -307,14 +365,29 @@ public class Histogram {
  /**
    *  Given a quantized value, scale the bucket that contains the value by 1-1/distinctCount,
    *  and set all other values to 1.
-   */ 
-  private float [] allNotEquality(float qvalue){
+   */
+  private float [] allNotEquality(float qvalue) {
+    Bucket bucket;
     float [] result = new float[this.numBuckets];
-    
+    Arrays.fill(result, (float)1);
 
-    // TODO: HW4 implement;
+    if (qvalue < this.minValue) {
+      return result;
+    }
 
+    for (int i = 0; i < this.numBuckets-1; i++) {
+      bucket = this.buckets[i]; /* get current bucket */
 
+      if ((float)bucket.getStart() <= qvalue && qvalue < (float)bucket.getEnd()) {
+        /* If this bucket contains the value */
+        result[i] = (float)1 - (float)1/(float)bucket.getDistinctCount(); /* set to 1/distinctCount */
+        return result;
+      }
+    }
+    if (qvalue <= this.maxValue) {
+      bucket = this.buckets[this.numBuckets-1];
+      result[this.numBuckets-1] = (float)1 - (float)1/(float)bucket.getDistinctCount();
+    }
     return result;
   }
 
@@ -324,11 +397,29 @@ public class Histogram {
    *  and set all other buckets to 1 if higher and 0 if lower.
    */
   private float [] allGreaterThan(float qvalue){
-    
+    Bucket bucket;
     float [] result = new float[this.numBuckets];
+    Arrays.fill(result, 0);
 
-    // TODO: HW4 implement;
+    if (qvalue < this.minValue) {
+      Arrays.fill(result, 1);
+      return result;
+    }
 
+    for (int i = 0; i < this.numBuckets-1; i++) {
+      bucket = this.buckets[i]; /* get current bucket */
+
+      if ((float)bucket.getStart() <= qvalue && qvalue < (float)bucket.getEnd()) {
+        /* If this bucket contains the value */
+        result[i] = ((float)bucket.getEnd() - qvalue)/(float)this.width;
+        Arrays.fill(result, i+1, this.numBuckets, (float)1);
+        return result;
+      }
+    }
+    if (qvalue <= this.maxValue) {
+      bucket = this.buckets[this.numBuckets-1];
+      result[this.numBuckets-1] = ((float)bucket.getEnd() - qvalue)/(float)this.width;
+    }
     return result;
   }
 
@@ -338,11 +429,29 @@ public class Histogram {
    *  and set all other buckets to 1 if lower and 0 if higher.
    */
   private float [] allLessThan(float qvalue){
-    
+    Bucket bucket;
     float [] result = new float[this.numBuckets];
+    Arrays.fill(result, 1);
 
-    // TODO: HW4 implement;
+    if (qvalue < this.minValue) {
+      Arrays.fill(result, 0);
+      return result;
+    }
 
+    for (int i = 0; i < this.numBuckets-1; i++) {
+      bucket = this.buckets[i]; /* get current bucket */
+
+      if ((float)bucket.getStart() <= qvalue && qvalue < (float)bucket.getEnd()) {
+        /* If this bucket contains the value */
+        result[i] = (qvalue - (float)bucket.getStart())/(float)this.width;
+        Arrays.fill(result, i+1, this.numBuckets, (float)0);
+        return result;
+      }
+    }
+    if (qvalue <= this.maxValue) {
+      bucket = this.buckets[this.numBuckets-1];
+      result[this.numBuckets-1] = (qvalue - (float)bucket.getStart())/(float)this.width;
+    }
     return result;
   }
 
@@ -361,9 +470,9 @@ public class Histogram {
    * of the values are greater than or equal to 25.
    */
   public float computeReductionFactor(PredicateOperator predicate, DataBox value){
-    
+
     float [] reduction = filter(predicate, value);
-    
+
     float sum = 0.0f;
     int total = 0;
 
@@ -378,7 +487,7 @@ public class Histogram {
 
   }
 
-  /** 
+  /**
    * Given a histogram for a dataset, return a new histogram for the same
    * dataset with a filter applied. For example, if apply the filter `>= 20` to
    * the example histogram from the top of the file, we would get the following
@@ -396,7 +505,7 @@ public class Histogram {
    *               0    0    0    0    0
    */
   public Histogram copyWithPredicate(PredicateOperator predicate, DataBox value){
-    
+
     float [] reduction = filter(predicate, value);
     Bucket<Float> [] newBuckets = this.buckets.clone();
 

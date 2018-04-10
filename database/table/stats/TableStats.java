@@ -56,7 +56,7 @@ public class TableStats {
     this.tableSchema = tableSchema;
     this.numRecords = 0;
     this.histograms = new ArrayList<Histogram>();
-    
+
   }
 
   private TableStats(Schema tableSchema, int numRecords, List<Histogram> histograms) {

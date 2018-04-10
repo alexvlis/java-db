@@ -26,7 +26,7 @@ public class Bucket<T> {
     this.start = start;
     this.end = null;
     this.count = 0;
-    
+
     this.distinctCount = 0;
     this.dictionary = new HashSet();
 
@@ -39,7 +39,7 @@ public class Bucket<T> {
 
     this.distinctCount = 0;
     this.dictionary = new HashSet();
-  
+
   }
 
   public T getStart() {
