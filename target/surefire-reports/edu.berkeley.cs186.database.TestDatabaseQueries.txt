@@ -1,0 +1,9 @@
+-------------------------------------------------------------------------------
+Test set: edu.berkeley.cs186.database.TestDatabaseQueries
+-------------------------------------------------------------------------------
+Tests run: 1, Failures: 0, Errors: 1, Skipped: 0, Time elapsed: 0.015 s <<< FAILURE! - in edu.berkeley.cs186.database.TestDatabaseQueries
+edu.berkeley.cs186.database.TestDatabaseQueries  Time elapsed: 0.015 s  <<< ERROR!
+java.nio.file.NoSuchFileException: students.csv
+	at edu.berkeley.cs186.database.TestDatabaseQueries.readTuplesFromFiles(TestDatabaseQueries.java:127)
+	at edu.berkeley.cs186.database.TestDatabaseQueries.setupClass(TestDatabaseQueries.java:41)
+
