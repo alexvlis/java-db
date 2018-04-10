@@ -1,4 +1,4 @@
-# sql-db
+# java-db
 Implementation of a Java based database.
 * [B+ Tree Indexing Implementation](https://github.com/alexvlis/java-db/tree/master/database/index)
 * [Iterator & Join implementation](https://github.com/alexvlis/java-db/tree/master/database/query)
